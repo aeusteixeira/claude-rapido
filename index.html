@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Claude Rápido</title>
+<style>
+  :root {
+    --terra: #d97757;          /* laranja do Claude */
+    --terra-claro: #ec9a7c;
+    --creme: #f5ece4;
+    --texto: #f3ebe4;
+    --suave: rgba(243, 235, 228, 0.62);
+    --fraco: rgba(243, 235, 228, 0.38);
+    --linha: rgba(255, 226, 208, 0.10);
+    --fundo-1: rgba(40, 29, 25, 0.97);
+    --fundo-2: rgba(21, 17, 16, 0.98);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: transparent; overflow: hidden; }
+  body {
+    font-family: 'Inter', 'Noto Sans', system-ui, sans-serif;
+    color: var(--texto);
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 18px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- cartão ---------- */
+  #card {
+    position: relative;
+    width: 680px;
+    border-radius: 24px;
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(217, 119, 87, 0.16), transparent 55%),
+      linear-gradient(165deg, var(--fundo-1), var(--fundo-2));
+    border: 1px solid var(--linha);
+    box-shadow:
+      0 30px 70px rgba(0, 0, 0, 0.55),
+      0 0 0 1px rgba(0, 0, 0, 0.35),
+      0 0 70px rgba(217, 119, 87, 0.16);
+    padding: 16px 18px 12px;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.965);
+    transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  }
+  body.aberto #card { opacity: 1; transform: none; }
+  body.fechando #card { opacity: 0; transform: translateY(-6px) scale(0.98); transition-duration: 0.12s; }
+  /* fio de luz na borda de cima */
+  #card::before {
+    content: ''; position: absolute; left: 40px; right: 40px; top: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(236, 154, 124, 0.7), transparent);
+  }
+
+  #saudacao {
+    font-family: 'Noto Serif', Georgia, serif;
+    font-size: 13.5px; font-style: italic; letter-spacing: 0.2px;
+    color: var(--suave);
+    margin: 0 0 8px 50px;
+  }
+  #saudacao b { font-style: normal; font-weight: 600; color: var(--terra-claro); }
+
+  #linha { display: flex; align-items: flex-start; gap: 12px; }
+
+  /* asterisco do Claude: gira devagar parado, acelera e pulsa enquanto você digita */
+  #logo { flex: none; width: 38px; height: 38px; margin-top: 1px; display: grid; place-items: center; }
+  #logo svg { width: 30px; height: 30px; animation: gira 14s linear infinite; filter: drop-shadow(0 0 10px rgba(217, 119, 87, 0.45)); }
+  body.digitando #logo svg { animation: gira 3.2s linear infinite, pulsa 0.9s ease-in-out infinite; }
+  body.enviando #logo svg { animation: gira 0.7s linear infinite; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+  @keyframes pulsa { 50% { filter: drop-shadow(0 0 16px rgba(236, 154, 124, 0.85)); } }
+
+  #campo { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
+  #chip {
+    display: none; flex: none; align-items: center; gap: 6px;
+    height: 28px; padding: 0 10px 0 8px; border-radius: 999px;
+    background: color-mix(in srgb, var(--cor, var(--terra)) 20%, transparent);
+    border: 1px solid color-mix(in srgb, var(--cor, var(--terra)) 45%, transparent);
+    color: var(--creme); font-size: 13px; font-weight: 600;
+    animation: entra 0.18s cubic-bezier(0.2, 0.9, 0.25, 1.2);
+  }
+  #chip.on { display: inline-flex; }
+  #chip svg { width: 14px; height: 14px; color: var(--cor, var(--terra)); }
+  #chip button { background: none; border: none; color: var(--fraco); cursor: pointer; font-size: 15px; line-height: 1; padding-left: 2px; }
+  #chip button:hover { color: var(--texto); }
+  @keyframes entra { from { transform: scale(0.8); opacity: 0; } }
+
+  #texto {
+    flex: 1 1 260px; min-width: 200px;
+    background: none; border: none; outline: none; resize: none;
+    color: var(--texto); caret-color: var(--terra);
+    font: inherit; font-size: 20px; line-height: 1.45; font-weight: 400;
+    max-height: 175px; height: 30px; overflow-y: auto;
+  }
+  #texto::placeholder { color: var(--fraco); transition: opacity 0.3s ease; }
+  #texto.troca::placeholder { opacity: 0; }
+  #texto::-webkit-scrollbar { width: 6px; }
+  #texto::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+
+  #rodape {
+    display: flex; align-items: center; gap: 14px;
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid var(--linha);
+    font-size: 11.5px; color: var(--fraco);
+  }
+  #rodape span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  kbd {
+    font-family: inherit; font-size: 10.5px; font-weight: 600;
+    min-width: 20px; height: 19px; padding: 0 5px;
+    display: inline-grid; place-items: center;
+    color: var(--suave); background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.09); border-bottom-width: 2px; border-radius: 5px;
+  }
+  #pasta { margin-left: auto; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+  #enviar {
+    flex: none; display: inline-flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 14px 0 16px; border-radius: 999px; border: none; cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 700; color: #2a140b;
+    background: linear-gradient(180deg, var(--terra-claro), var(--terra));
+    box-shadow: 0 6px 18px rgba(217, 119, 87, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+  }
+  #enviar:hover { filter: brightness(1.07); transform: translateY(-1px); }
+  #enviar:active { transform: translateY(0) scale(0.97); }
+  #enviar:disabled { opacity: 0.35; cursor: default; transform: none; filter: none; box-shadow: none; }
+  #enviar svg { width: 15px; height: 15px; }
+
+  #erro { display: none; margin-top: 8px; font-size: 12px; color: #ff9a8a; }
+  #erro.on { display: block; }
+
+  /* ---------- lista: projetos (@) e histórico (↑) ---------- */
+  #lista {
+    width: 640px; margin-top: 8px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(34, 26, 23, 0.98), rgba(22, 18, 17, 0.98));
+    border: 1px solid var(--linha);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    padding: 6px;
+    max-height: 290px; overflow-y: auto;
+    display: none;
+    animation: desce 0.16s cubic-bezier(0.2, 0.9, 0.25, 1.1);
+  }
+  #lista.on { display: block; }
+  #lista::-webkit-scrollbar { width: 6px; }
+  #lista::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+  @keyframes desce { from { opacity: 0; transform: translateY(-6px); } }
+  .titulo-lista { padding: 6px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--fraco); }
+  .op {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px; cursor: pointer;
+    font-size: 13.5px; color: var(--suave);
+  }
+  .op .bolinha { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cor, var(--terra)); box-shadow: 0 0 8px var(--cor, var(--terra)); }
+  .op .nome { color: var(--texto); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .op .sub { margin-left: auto; flex: none; font-size: 11.5px; color: var(--fraco); }
+  .op .hist { flex: 1; min-width: 0; color: var(--texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .op .apagar { flex: none; opacity: 0; background: none; border: none; color: var(--fraco); cursor: pointer; font-size: 14px; }
+  .op:hover .apagar, .op.sel .apagar { opacity: 1; }
+  .op.sel { background: rgba(217, 119, 87, 0.16); color: var(--creme); }
+  .op.sel .nome { color: var(--creme); }
+  .op mark { background: none; color: var(--terra-claro); font-weight: 700; }
+  .vazio { padding: 14px 10px; font-size: 12.5px; color: var(--fraco); }
+</style>
+</head>
+<body>
+  <div id="card">
+    <div id="saudacao"></div>
+    <div id="linha">
+      <div id="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="#d97757" stroke-width="2.6" stroke-linecap="round">
+          <path d="M12 2.5v6.2M12 15.3v6.2M2.5 12h6.2M15.3 12h6.2M5.3 5.3l4.4 4.4M14.3 14.3l4.4 4.4M5.3 18.7l4.4-4.4M14.3 9.7l4.4-4.4"/>
+        </g></svg>
+      </div>
+      <div id="campo">
+        <span id="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span id="chip-nome"></span><button id="chip-x" title="Tirar o projeto">×</button></span>
+        <textarea id="texto" rows="1" spellcheck="false" autofocus></textarea>
+      </div>
+    </div>
+    <div id="erro"></div>
+    <div id="rodape">
+      <span><kbd>↵</kbd> enviar</span>
+      <span><kbd>⇧</kbd><kbd>↵</kbd> nova linha</span>
+      <span><kbd>@</kbd> projeto</span>
+      <span><kbd>↑</kbd> histórico</span>
+      <span id="pasta">~</span>
+      <button id="enviar" disabled>Perguntar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
+  </div>
+  <div id="lista"></div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const texto = $('#texto');
+  const lista = $('#lista');
+  const chip = $('#chip');
+  const enviar = $('#enviar');
+  const erro = $('#erro');
+  const CORES = { Trabalho: '#7cb7ff', Pessoais: '#d97757', Estudo: '#8fd18a' };
+  const corDe = (cat) => CORES[cat] || '#c792ea';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  let projetos = [];
+  let historico = [];
+  let projeto = null;     // { name, category, path }
+  let modo = null;        // 'projetos' | 'historico' | null
+  let itens = [];
+  let sel = 0;
+
+  // ---------- personalidade ----------
+  const FRASES = [
+    'Pergunte qualquer coisa ao Claude…',
+    'Explique esse erro pra mim…',
+    'Escreva um script que…',
+    'Revise o último commit de @projeto…',
+    'Como faço pra…',
+    'Me ajude a planejar…',
+  ];
+  let frase = 0;
+  function saudacao() {
+    const h = new Date().getHours();
+    const s = h < 5 ? 'Boa madrugada' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    const extra = h < 5 ? 'Ainda acordado? Vamos nessa.' : h < 12 ? 'Com o que a gente começa?' : h < 18 ? 'No que posso ajudar?' : 'O que vamos resolver?';
+    $('#saudacao').innerHTML = `${s}, <b>Matheus</b>. ${extra}`;
+  }
+  setInterval(() => {
+    if (texto.value) return;
+    texto.classList.add('troca');
+    setTimeout(() => {
+      frase = (frase + 1) % FRASES.length;
+      texto.placeholder = FRASES[frase];
+      texto.classList.remove('troca');
+    }, 300);
+  }, 3800);
+
+  // ---------- campo ----------
+  function ajustarAltura() {
+    texto.style.height = '30px';
+    texto.style.height = Math.min(texto.scrollHeight, 175) + 'px';
+  }
+  function atualizar() {
+    ajustarAltura();
+    enviar.disabled = !texto.value.trim();
+    document.body.classList.toggle('digitando', !!texto.value);
+    clearTimeout(atualizar.t);
+    atualizar.t = setTimeout(() => document.body.classList.remove('digitando'), 900);
+    erro.classList.remove('on');
+    const at = tokenArroba();
+    if (at) abrirProjetos(at.busca);
+    else if (modo === 'projetos') fecharLista();
+  }
+  function definirProjeto(p) {
+    projeto = p;
+    chip.classList.toggle('on', !!p);
+    if (p) {
+      chip.style.setProperty('--cor', corDe(p.category));
+      $('#chip-nome').textContent = p.name;
+    }
+    $('#pasta').textContent = p ? `${p.category}/${p.name}` : '~';
+  }
+  $('#chip-x').addEventListener('click', () => (definirProjeto(null), texto.focus()));
+
+  // "@tum" logo antes do cursor
+  function tokenArroba() {
+    const antes = texto.value.slice(0, texto.selectionStart);
+    const m = antes.match(/(^|\s)@([\w.-]*)$/);
+    return m ? { busca: m[2], inicio: antes.length - m[2].length - 1 } : null;
+  }
+
+  // ---------- lista ----------
+  function destacar(nome, busca) {
+    if (!busca) return esc(nome);
+    const i = nome.toLowerCase().indexOf(busca.toLowerCase());
+    return i < 0 ? esc(nome) : esc(nome.slice(0, i)) + '<mark>' + esc(nome.slice(i, i + busca.length)) + '</mark>' + esc(nome.slice(i + busca.length));
+  }
+  function abrirProjetos(busca) {
+    modo = 'projetos';
+    const b = busca.toLowerCase();
+    itens = projetos.filter((p) => !b || p.name.toLowerCase().includes(b)).slice(0, 30);
+    sel = Math.min(sel, Math.max(itens.length - 1, 0));
+    lista.innerHTML =
+      '<div class="titulo-lista">Abrir o Claude na pasta de</div>' +
+      (itens.length
+        ? itens.map((p, i) => `<div class="op${i === sel ? ' sel' : ''}" data-i="${i}" style="--cor:${corDe(p.category)}"><span class="bolinha"></span><span class="nome">${destacar(p.name, busca)}</span><span class="sub">${esc(p.category)}</span></div>`).join('')
+        : '<div class="vazio">Nenhum projeto com esse nome.</div>');
+    lista.classList.add('on');
+  }
+  function abrirHistorico() {
+    modo = 'historico';
+    itens = historico;
+    sel = 0;
+    lista.innerHTML =
+      '<div class="titulo-lista">Perguntas recentes</div>' +
+      (itens.length
+        ? itens.map((h, i) => {
+            const p = h.path ? projetos.find((x) => x.path === h.path) : null;
+            return `<div class="op${i === sel ? ' sel' : ''}" data-i="${i}" style="--cor:${p ? corDe(p.category) : 'var(--terra)'}"><span class="bolinha"></span><span class="hist">${esc(h.text)}</span>${p ? `<span class="sub">${esc(p.name)}</span>` : ''}<button class="apagar" data-apagar="${i}" title="Esquecer">×</button></div>`;
+          }).join('')
+        : '<div class="vazio">Nada por aqui ainda — sua primeira pergunta vai aparecer aqui.</div>');
+    lista.classList.add('on');
+  }
+  function fecharLista() {
+    modo = null;
+    lista.classList.remove('on');
+  }
+  function marcar(i) {
+    if (!itens.length) return;
+    sel = (i + itens.length) % itens.length;
+    lista.querySelectorAll('.op').forEach((el) => el.classList.toggle('sel', +el.dataset.i === sel));
+    const el = lista.querySelector('.op.sel');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+  function escolher(i) {
+    const item = itens[i];
+    if (!item) return;
+    if (modo === 'projetos') {
+      const at = tokenArroba();
+      if (at) texto.value = texto.value.slice(0, at.inicio) + texto.value.slice(texto.selectionStart).replace(/^\s*/, '');
+      definirProjeto(item);
+    } else if (modo === 'historico') {
+      texto.value = item.text;
+      definirProjeto(item.path ? projetos.find((p) => p.path === item.path) || null : null);
+    }
+    fecharLista();
+    texto.focus();
+    texto.setSelectionRange(texto.value.length, texto.value.length);
+    atualizar();
+  }
+  lista.addEventListener('mousedown', (e) => e.preventDefault()); // não tira o foco do campo
+  lista.addEventListener('click', (e) => {
+    const apagar = e.target.closest('[data-apagar]');
+    if (apagar) {
+      const i = +apagar.dataset.apagar;
+      historico.splice(i, 1);
+      window.rapido.forget(i);
+      return abrirHistorico();
+    }
+    const op = e.target.closest('.op');
+    if (op) escolher(+op.dataset.i);
+  });
+
+  // ---------- enviar ----------
+  async function perguntar() {
+    let t = texto.value.trim();
+    if (!t) return;
+    let p = projeto;
+    // "tumta: ..." também escolhe o projeto (o jeito antigo da caixinha)
+    const m = !p && t.match(/^([\w.-]+):\s*([\s\S]+)$/);
+    if (m) {
+      const achado = projetos.find((x) => x.name.toLowerCase() === m[1].toLowerCase());
+      if (achado) {
+        p = achado;
+        t = m[2].trim();
+      }
+    }
+    document.body.classList.add('enviando');
+    enviar.disabled = true;
+    const r = await window.rapido.launch({ text: t, path: p ? p.path : null });
+    document.body.classList.remove('enviando');
+    if (!r.ok) {
+      erro.textContent = r.error;
+      erro.classList.add('on');
+      enviar.disabled = false;
+    }
+  }
+  enviar.addEventListener('click', perguntar);
+
+  texto.addEventListener('input', atualizar);
+  texto.addEventListener('keydown', (e) => {
+    if (modo && itens.length) {
+      if (e.key === 'ArrowDown') return e.preventDefault(), marcar(sel + 1);
+      if (e.key === 'ArrowUp') return e.preventDefault(), marcar(sel - 1);
+      if (e.key === 'Enter' || e.key === 'Tab') return e.preventDefault(), escolher(sel);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      return modo ? fecharLista() : window.rapido.hide();
+    }
+    if (e.key === 'ArrowUp' && !texto.value && !modo) return e.preventDefault(), abrirHistorico();
+    if (e.key === 'Backspace' && !texto.value && projeto) return definirProjeto(null);
+    if (e.key === 'Enter' && !e.shiftKey) return e.preventDefault(), perguntar();
+  });
+
+  // ---------- abrir / fechar ----------
+  window.rapido.onOpen((d) => {
+    projetos = d.projects;
+    historico = d.history;
+    texto.value = '';
+    definirProjeto(null);
+    fecharLista();
+    erro.classList.remove('on');
+    saudacao();
+    texto.placeholder = FRASES[(frase = Math.floor(Math.random() * FRASES.length))];
+    atualizar();
+    document.body.classList.remove('fechando');
+    requestAnimationFrame(() => document.body.classList.add('aberto'));
+    setTimeout(() => texto.focus(), 30);
+  });
+  window.rapido.onClose(() => {
+    document.body.classList.add('fechando');
+    document.body.classList.remove('aberto');
+  });
+</script>
+</body>
+</html>
