@@ -111,5 +111,5 @@ fi
 pgrep -f "$RAIZ/node_modules/electron" >/dev/null || (setsid "$BIN" --oculto >/dev/null 2>&1 < /dev/null &)
 
 echo "Pronto! Aperte $ATALHO em qualquer lugar e digite sua pergunta."
-echo "Aperte $ATALHO_DITADO pra ditar: fale, aperte Espaço e o texto vai pra área de transferência."
+echo "Aperte $ATALHO_DITADO pra ditar: fale, aperte Espaço e depois Enter pra colar onde estava o cursor."
 echo "Dica: comece com \"projeto:\" (ex.: tumta: ...) para abrir o Claude na pasta do projeto."
