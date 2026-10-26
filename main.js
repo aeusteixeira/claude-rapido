@@ -88,8 +88,11 @@ function launch({ text, path: dir }) {
   // um texto começando com "-" seria lido como opção do claude
   const prompt = text.startsWith('-') ? ` ${text}` : text;
   const cwd = dir && fs.existsSync(dir) ? dir : os.homedir();
+  // se a barra foi iniciada de dentro de um Claude, as variáveis dele não podem vazar
+  // pro novo (senão ele se acha uma sessão filha e não salva o histórico)
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('CLAUDE_CODE_') && k !== 'CLAUDECODE'));
   try {
-    spawn('konsole', ['--workdir', cwd, '-e', claude, prompt], { detached: true, stdio: 'ignore' }).unref();
+    spawn('konsole', ['--workdir', cwd, '-e', claude, prompt], { detached: true, stdio: 'ignore', env }).unref();
   } catch (e) {
     return { ok: false, error: `Não consegui abrir o Konsole: ${e.message}` };
   }
