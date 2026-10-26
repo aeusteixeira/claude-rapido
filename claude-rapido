@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Claude Rápido: um atalho global abre uma caixinha; o que você digitar vira a primeira
+# mensagem de uma sessão do Claude Code num terminal novo.
+#
+#   claude-rapido                  abre a caixinha (é o que o atalho chama)
+#   claude-rapido "pergunta"       pula a caixinha
+#   claude-rapido --dry-run "..."  só mostra a pasta e a pergunta que seriam usadas
+#
+# Começar com "projeto: ..." abre o Claude na pasta desse projeto
+# (procura em $PROJETOS_ROOT/<Categoria>/<projeto>, sem diferenciar maiúsculas).
+set -euo pipefail
+
+ROOT="${PROJETOS_ROOT:-$HOME/Documentos/Projetos}"
+
+dry=0
+if [[ "${1:-}" == "--dry-run" ]]; then
+    dry=1
+    shift
+fi
+
+if [[ $# -gt 0 ]]; then
+    texto="$*"
+else
+    texto=$(kdialog --title "Claude" --icon claude-rapido \
+        --inputbox "Pergunte ao Claude   ·   comece com \"projeto:\" para abrir na pasta dele" "" 2>/dev/null) || exit 0
+fi
+
+# tira espaços das pontas
+texto="${texto#"${texto%%[![:space:]]*}"}"
+texto="${texto%"${texto##*[![:space:]]}"}"
+[[ -z "$texto" ]] && exit 0
+
+pasta="$HOME"
+if [[ "$texto" =~ ^([[:alnum:]._-]+):[[:space:]]*(.+)$ ]]; then
+    nome="${BASH_REMATCH[1]}"
+    resto="${BASH_REMATCH[2]}"
+    achado=$(find "$ROOT" -mindepth 2 -maxdepth 2 -type d -iname "$nome" -print -quit 2>/dev/null || true)
+    if [[ -n "$achado" ]]; then
+        pasta="$achado"
+        texto="$resto"
+    fi
+fi
+
+# um texto começando com "-" seria lido como opção do claude
+[[ "$texto" == -* ]] && texto=" $texto"
+
+if [[ $dry -eq 1 ]]; then
+    printf 'pasta: %s\npergunta: %s\n' "$pasta" "$texto"
+    exit 0
+fi
+
+# o atalho do KDE não carrega o PATH do terminal, então procura o claude nos lugares de sempre
+claude=$(command -v claude || true)
+for c in "$HOME/.local/bin/claude" "$HOME/.claude/local/claude"; do
+    [[ -z "$claude" && -x "$c" ]] && claude="$c"
+done
+if [[ -z "$claude" ]]; then
+    kdialog --title "Claude" --error "Não encontrei o comando claude. Instale o Claude Code e tente de novo."
+    exit 1
+fi
+
+exec konsole --workdir "$pasta" -e "$claude" "$texto"
