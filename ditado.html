@@ -127,16 +127,29 @@
     $('#estado').textContent = frase;
   }
 
+  // uma barra nova a cada PASSO_MS com o pico do intervalo; entre uma e outra a onda
+  // desliza suave em vez de pular
+  const PASSO_MS = 80;
+  let pico = 0;
+  let ultimo = 0;
   function desenhar(nivel) {
-    niveis.push(Math.min(1, nivel * 4));
-    if (niveis.length > BARRAS) niveis.shift();
+    const agora = performance.now();
+    pico = Math.max(pico, nivel);
+    if (!ultimo) ultimo = agora;
+    if (agora - ultimo >= PASSO_MS) {
+      niveis.push(Math.min(1, pico * 4));
+      if (niveis.length > BARRAS + 1) niveis.shift();
+      pico = 0;
+      ultimo = agora;
+    }
     const { width: w, height: h } = onda;
     g.clearRect(0, 0, w, h);
     const passo = w / BARRAS;
+    const desliza = ((agora - ultimo) / PASSO_MS) * passo;
     g.fillStyle = '#ec9a7c';
     niveis.forEach((n, i) => {
       const alt = Math.max(6, n * h);
-      const x = w - (niveis.length - i) * passo + passo * 0.25;
+      const x = w - (niveis.length - i) * passo + passo * 0.25 - desliza + passo;
       g.globalAlpha = 0.35 + 0.65 * (i / niveis.length);
       g.beginPath();
       g.roundRect(x, (h - alt) / 2, passo * 0.5, alt, 4);
@@ -146,6 +159,7 @@
 
   async function gravar() {
     niveis = [];
+    pico = ultimo = 0;
     texto.value = '';
     mudar('gravando', 'ouvindo…');
     try {
