@@ -5,7 +5,7 @@ qualquer lugar. O que você digitar vira a primeira mensagem de uma sessão do
 **Claude Code** num terminal novo.
 
 ```
-Meta+Shift+C  →  barra no centro da tela  →  Konsole com o claude já respondendo
+Meta+C  →  barra no centro da tela  →  Konsole com o claude já respondendo
 ```
 
 - **`@` escolhe o projeto**: digite `@tum`, escolha na lista e o Claude abre na pasta
@@ -22,7 +22,7 @@ em `~/.local/state/claude-rapido/historico.json`.
 ## Instalar
 
 ```bash
-./instalar.sh                 # atalho Meta+Shift+C
+./instalar.sh                 # atalho Meta+C
 ./instalar.sh "Ctrl+Alt+K"    # outro atalho
 ./instalar.sh --remover       # desinstala
 ```

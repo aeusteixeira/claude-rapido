@@ -2,7 +2,7 @@
 # Instala o Claude Rápido no KDE Plasma: dependências, comando, item no menu, atalho global
 # e início junto com o sistema (escondido, pra barra abrir na hora no primeiro atalho).
 #
-#   ./instalar.sh                 instala com os atalhos Meta+Shift+C (barra) e Meta+H (ditado)
+#   ./instalar.sh                 instala com os atalhos Meta+C (barra) e Meta+H (ditado)
 #   ./instalar.sh "Ctrl+Alt+K"    instala com outro atalho pra barra
 #   ATALHO_DITADO=Meta+D ./instalar.sh   outro atalho pro ditado
 #   ./instalar.sh --remover       desinstala
@@ -32,7 +32,7 @@ if [[ "${1:-}" == "--remover" ]]; then
     exit 0
 fi
 
-ATALHO="${1:-Meta+Shift+C}"
+ATALHO="${1:-Meta+C}"
 ATALHO_DITADO="${ATALHO_DITADO:-Meta+H}"
 
 for c in konsole kwriteconfig6 npm; do
