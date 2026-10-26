@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('rapido', {
   transcrever: (audio) => ipcRenderer.invoke('transcrever', audio),
   copiar: (texto) => ipcRenderer.send('copiar', texto),
   esconderDitado: () => ipcRenderer.send('ditado:esconder'),
+  colarDitado: (texto) => ipcRenderer.send('ditado:colar', texto),
   perguntarDitado: (texto) => ipcRenderer.invoke('ditado:perguntar', texto),
   onDitado: (evento, cb) => ipcRenderer.on(`ditado:${evento}`, () => cb()),
 });

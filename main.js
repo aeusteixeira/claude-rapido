@@ -165,6 +165,13 @@ function hide() {
   setTimeout(() => win && win.hide(), 140); // deixa a animação de saída terminar
 }
 
+// cola no app que estava em foco antes do ditado. No Wayland só um teclado virtual
+// (ydotool) consegue; Shift+Insert cola tanto em apps comuns quanto no terminal
+function colar() {
+  const env = { ...process.env, YDOTOOL_SOCKET: process.env.YDOTOOL_SOCKET || '/run/ydotoold/socket' };
+  execFile('ydotool', ['key', '42:1', '110:1', '110:0', '42:0'], { env }, () => {});
+}
+
 function abrirDitado() {
   if (!ditado) return;
   // Meta+H com a janela aberta para a gravação (ou grava de novo)
@@ -227,6 +234,11 @@ app.whenReady().then(() => {
   ipcMain.handle('transcrever', (_e, audio) => transcrever(audio));
   ipcMain.on('copiar', (_e, texto) => clipboard.writeText(texto));
   ipcMain.on('ditado:esconder', esconderDitado);
+  ipcMain.on('ditado:colar', (_e, texto) => {
+    clipboard.writeText(texto);
+    esconderDitado();
+    setTimeout(colar, 350); // espera a janela sumir e o foco voltar pro app de antes
+  });
   ipcMain.handle('ditado:perguntar', (_e, text) => {
     const r = launch({ text, path: null });
     if (r.ok) esconderDitado();

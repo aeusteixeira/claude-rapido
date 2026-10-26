@@ -46,6 +46,8 @@ posicionar e pegar o foco. A interface inteira está em `index.html`.
 ## Falar em vez de digitar
 
 - **Na barra:** clique no microfone (ou `Ctrl+Espaço`), fale e clique de novo (ou `Enter`). O texto entra no campo.
-- **Em qualquer lugar:** `Meta+H` abre a janela de ditado, que já começa a ouvir. `Espaço` (ou `Meta+H` de novo) termina; o texto vai pra área de transferência — é só colar com `Ctrl+V`. `Ctrl+Enter` manda direto pro Claude.
+- **Em qualquer lugar:** `Meta+H` abre a janela de ditado, que já começa a ouvir. `Espaço` (ou `Meta+H` de novo) termina; aí `Enter` fecha a janela e cola o texto sozinho no app onde você estava (ele também fica na área de transferência). `Ctrl+Enter` manda direto pro Claude.
+
+O colar automático usa o [ydotool](https://github.com/ReimuNotMoe/ydotool) (`sudo dnf install ydotool`), com o serviço `ydotoold` deixando o socket em `/run/ydotoold/socket` pro seu usuário — veja o override em `ydotool-override.conf`. Sem ele o texto só fica copiado.
 
 A transcrição é local, pelo [whisper.cpp](https://github.com/ggml-org/whisper.cpp) com o modelo `small` (~2 s por frase no processador). O `instalar.sh` compila o `whisper-cli` e baixa o modelo; dá pra trocar com `WHISPER_CLI` e `WHISPER_MODEL`.

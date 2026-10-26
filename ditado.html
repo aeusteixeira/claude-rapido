@@ -99,7 +99,7 @@
     <div id="rodape">
       <span class="g"><kbd>Espaço</kbd> terminar</span>
       <span class="p" id="copiado">✓ copiado</span>
-      <span class="p"><kbd>↵</kbd> copiar</span>
+      <span class="p"><kbd>↵</kbd> colar</span>
       <span class="p"><kbd>Ctrl</kbd><kbd>↵</kbd> mandar pro Claude</span>
       <span class="p"><kbd>Ctrl</kbd><kbd>R</kbd> regravar</span>
       <span class="e"><kbd>R</kbd> gravar de novo</span>
@@ -196,8 +196,9 @@
     }
     if (estado === 'pronto' && e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      window.rapido.copiar(texto.value.trim());
-      return fechar();
+      gravador.cancelar();
+      estado = '';
+      return window.rapido.colarDitado(texto.value.trim());
     }
     // no texto pronto o R é digitação normal; só grava de novo com Ctrl+R
     if ((estado === 'erro' && e.key.toLowerCase() === 'r') || (estado === 'pronto' && e.key.toLowerCase() === 'r' && e.ctrlKey)) {
