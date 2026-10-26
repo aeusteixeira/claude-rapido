@@ -6,4 +6,9 @@ contextBridge.exposeInMainWorld('rapido', {
   forget: (i) => ipcRenderer.send('forget', i),
   onOpen: (cb) => ipcRenderer.on('open', (_e, data) => cb(data)),
   onClose: (cb) => ipcRenderer.on('close', () => cb()),
+  transcrever: (audio) => ipcRenderer.invoke('transcrever', audio),
+  copiar: (texto) => ipcRenderer.send('copiar', texto),
+  esconderDitado: () => ipcRenderer.send('ditado:esconder'),
+  perguntarDitado: (texto) => ipcRenderer.invoke('ditado:perguntar', texto),
+  onDitado: (evento, cb) => ipcRenderer.on(`ditado:${evento}`, () => cb()),
 });

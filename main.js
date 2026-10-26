@@ -1,11 +1,12 @@
 // Claude Rápido: uma barra flutuante que fica rodando em segundo plano. O atalho global
 // chama `claude-rapido`, que reabre este app; a segunda instância só pede pra janela
-// aparecer — por isso abre na hora depois da primeira vez.
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+// aparecer — por isso abre na hora depois da primeira vez. `claude-rapido --ditado` (Meta+H)
+// abre a janela de ditado: fala, o whisper transcreve e o texto vai pra área de transferência.
+const { app, BrowserWindow, clipboard, ipcMain, screen } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execFile, spawn } = require('child_process');
 
 // No Wayland a janela não escolhe a própria posição nem pode pegar o foco sozinha;
 // pelo XWayland ela aparece centralizada e já com o cursor no campo
@@ -26,8 +27,12 @@ const HISTORY = path.join(STATE_DIR, 'historico.json');
 const MAX_HISTORY = 50;
 const WIDTH = 720;
 const HEIGHT = 520; // espaço pra lista de projetos; a parte vazia é transparente
+const DITADO_W = 600;
+const DITADO_H = 300;
+const MODELO = process.env.WHISPER_MODEL || path.join(os.homedir(), '.local', 'share', 'whisper', 'ggml-small-q5_1.bin');
 
 let win = null;
+let ditado = null;
 
 function projects() {
   const out = [];
@@ -82,6 +87,50 @@ function claudeBin() {
   return null;
 }
 
+function whisperBin() {
+  const opcoes = [process.env.WHISPER_CLI, path.join(os.homedir(), '.local', 'bin', 'whisper-cli'), path.join(os.homedir(), '.local', 'src', 'whisper.cpp', 'build', 'bin', 'whisper-cli')];
+  for (const c of opcoes) {
+    if (!c) continue;
+    try {
+      fs.accessSync(c, fs.constants.X_OK);
+      return c;
+    } catch {}
+  }
+  return null;
+}
+
+function rodar(cmd, args) {
+  return new Promise((resolve, reject) =>
+    execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => (err ? reject(new Error(stderr.trim() || err.message)) : resolve(stdout)))
+  );
+}
+
+// áudio webm da gravação → wav 16 kHz → whisper.cpp, tudo local
+async function transcrever(audio) {
+  const bin = whisperBin();
+  if (!bin) return { ok: false, error: 'Não encontrei o whisper-cli (whisper.cpp).' };
+  if (!fs.existsSync(MODELO)) return { ok: false, error: `Falta o modelo de voz em ${MODELO}` };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-rapido-'));
+  try {
+    const webm = path.join(dir, 'fala.webm');
+    const wav = path.join(dir, 'fala.wav');
+    fs.writeFileSync(webm, Buffer.from(audio));
+    await rodar('ffmpeg', ['-loglevel', 'error', '-i', webm, '-ar', '16000', '-ac', '1', '-y', wav]);
+    // o whisper sempre processa 30 s (1500 quadros); encurtar pro tamanho da fala deixa
+    // frases curtas umas 3x mais rápidas. wav 16 kHz mono 16 bits = 32000 bytes/s
+    const segundos = (fs.statSync(wav).size - 44) / 32000;
+    const quadros = segundos < 28 ? Math.max(384, Math.ceil(((segundos + 2) / 30) * 1500 / 64) * 64) : 0;
+    const out = await rodar(bin, ['-m', MODELO, '-f', wav, '-l', 'pt', '-nt', '-np', '-ac', String(quadros), '-t', String(Math.min(os.cpus().length, 8))]);
+    // silêncio vira "[BLANK_AUDIO]", "(música)" etc.
+    const text = out.replace(/\[[^\]]*\]|\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    return { ok: true, text };
+  } catch (e) {
+    return { ok: false, error: `A transcrição falhou: ${e.message}` };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function launch({ text, path: dir }) {
   const claude = claudeBin();
   if (!claude) return { ok: false, error: 'Não encontrei o comando claude. Instale o Claude Code.' };
@@ -116,10 +165,27 @@ function hide() {
   setTimeout(() => win && win.hide(), 140); // deixa a animação de saída terminar
 }
 
-app.whenReady().then(() => {
-  win = new BrowserWindow({
-    width: WIDTH,
-    height: HEIGHT,
+function abrirDitado() {
+  if (!ditado) return;
+  // Meta+H com a janela aberta para a gravação (ou grava de novo)
+  if (ditado.isVisible()) return ditado.webContents.send('ditado:atalho');
+  const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  ditado.setBounds({ x: Math.round(d.x + (d.width - DITADO_W) / 2), y: Math.round(d.y + d.height - DITADO_H - 70), width: DITADO_W, height: DITADO_H });
+  ditado.webContents.send('ditado:abrir');
+  ditado.show();
+  ditado.focus();
+}
+
+function esconderDitado() {
+  if (!ditado || !ditado.isVisible()) return;
+  ditado.webContents.send('close');
+  setTimeout(() => ditado && ditado.hide(), 140);
+}
+
+function janela(arquivo, largura, altura) {
+  const w = new BrowserWindow({
+    width: largura,
+    height: altura,
     show: false,
     frame: false,
     transparent: true,
@@ -131,13 +197,26 @@ app.whenReady().then(() => {
     backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true },
   });
-  win.setAlwaysOnTop(true, 'pop-up-menu');
-  win.loadFile(path.join(__dirname, 'index.html'));
+  w.setAlwaysOnTop(true, 'pop-up-menu');
+  w.loadFile(path.join(__dirname, arquivo));
+  return w;
+}
+
+function abrirPeloArgv(argv) {
+  if (argv.includes('--ditado')) abrirDitado();
+  else if (!argv.includes('--oculto')) show();
+}
+
+app.whenReady().then(() => {
+  win = janela('index.html', WIDTH, HEIGHT);
   win.on('blur', hide);
-  win.webContents.once('did-finish-load', () => {
-    // aberto pelo atalho (não pelo autostart com --oculto): já mostra
-    if (!process.argv.includes('--oculto')) show();
-  });
+  ditado = janela('ditado.html', DITADO_W, DITADO_H);
+  // o ditado decide sozinho se fecha ao perder o foco (não fecha no meio da gravação)
+  ditado.on('blur', () => ditado.webContents.send('ditado:blur'));
+  let carregadas = 0;
+  const pronta = () => ++carregadas === 2 && abrirPeloArgv(process.argv);
+  win.webContents.once('did-finish-load', pronta);
+  ditado.webContents.once('did-finish-load', pronta);
 
   ipcMain.handle('launch', (_e, payload) => {
     const r = launch(payload);
@@ -145,13 +224,21 @@ app.whenReady().then(() => {
     return r;
   });
   ipcMain.on('hide', hide);
+  ipcMain.handle('transcrever', (_e, audio) => transcrever(audio));
+  ipcMain.on('copiar', (_e, texto) => clipboard.writeText(texto));
+  ipcMain.on('ditado:esconder', esconderDitado);
+  ipcMain.handle('ditado:perguntar', (_e, text) => {
+    const r = launch({ text, path: null });
+    if (r.ok) esconderDitado();
+    return r;
+  });
   ipcMain.on('forget', (_e, i) => {
     const h = readHistory();
     h.splice(i, 1);
     fs.writeFileSync(HISTORY, JSON.stringify(h));
   });
 
-  app.on('second-instance', show);
+  app.on('second-instance', (_e, argv) => abrirPeloArgv(argv));
 });
 
 // a janela só esconde; o app fica vivo pra abrir na hora no próximo atalho

@@ -119,6 +119,19 @@
   #enviar:disabled { opacity: 0.35; cursor: default; transform: none; filter: none; }
   #enviar svg { width: 15px; height: 15px; }
 
+  /* microfone: grava, o whisper transcreve e o texto entra no campo */
+  #mic {
+    flex: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+    display: inline-grid; place-items: center;
+    color: var(--suave); background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.09);
+    transition: color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+  }
+  #mic:hover { color: var(--texto); background: rgba(255, 255, 255, 0.1); }
+  #mic svg { width: 16px; height: 16px; }
+  body.gravando #mic { color: #fff; background: #ff6b5b; border-color: transparent; box-shadow: 0 0 0 calc(var(--nivel, 0) * 14px) rgba(255, 107, 91, 0.25); }
+  body.transcrevendo #mic { color: var(--terra-claro); animation: pulsa 0.6s ease-in-out infinite; }
+  body.gravando #logo svg { animation: gira 2s linear infinite, pulsa 0.9s ease-in-out infinite; }
+
   #erro { display: none; margin-top: 8px; font-size: 12px; color: #ff9a8a; }
   #erro.on { display: block; }
 
@@ -176,11 +189,13 @@
       <span><kbd>@</kbd> projeto</span>
       <span><kbd>↑</kbd> histórico</span>
       <span id="pasta">~</span>
+      <button id="mic" title="Falar em vez de digitar (Ctrl+Espaço)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <button id="enviar" disabled>Perguntar <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </div>
   </div>
   <div id="lista"></div>
 
+<script src="gravador.js"></script>
 <script>
   const $ = (s) => document.querySelector(s);
   const texto = $('#texto');
@@ -357,8 +372,50 @@
   }
   enviar.addEventListener('click', perguntar);
 
+  // ---------- microfone ----------
+  const gravador = new Gravador();
+  const mic = $('#mic');
+  let transcrevendo = false;
+  async function microfone() {
+    if (transcrevendo) return;
+    if (!gravador.gravando) {
+      try {
+        await gravador.iniciar((n) => mic.style.setProperty('--nivel', Math.min(1, n * 4)));
+      } catch (e) {
+        erro.textContent = `Não consegui usar o microfone: ${e.message}`;
+        return erro.classList.add('on');
+      }
+      document.body.classList.add('gravando');
+      texto.focus();
+      return;
+    }
+    const audio = await gravador.parar();
+    document.body.classList.remove('gravando');
+    document.body.classList.add('transcrevendo');
+    transcrevendo = true;
+    const r = await window.rapido.transcrever(audio);
+    transcrevendo = false;
+    document.body.classList.remove('transcrevendo');
+    if (!r.ok) return (erro.textContent = r.error), erro.classList.add('on');
+    if (!r.text) return;
+    // entra onde está o cursor, com espaço se precisar
+    const i = texto.selectionStart;
+    const antes = texto.value.slice(0, i);
+    const sep = antes && !/\s$/.test(antes) ? ' ' : '';
+    texto.value = antes + sep + r.text + texto.value.slice(texto.selectionEnd);
+    const fim = (antes + sep + r.text).length;
+    texto.focus();
+    texto.setSelectionRange(fim, fim);
+    atualizar();
+  }
+  mic.addEventListener('mousedown', (e) => e.preventDefault()); // não tira o foco do campo
+  mic.addEventListener('click', microfone);
+
   texto.addEventListener('input', atualizar);
   texto.addEventListener('keydown', (e) => {
+    if (e.key === ' ' && e.ctrlKey) return e.preventDefault(), microfone();
+    // gravando, o Enter só termina a gravação (não manda a pergunta pela metade)
+    if (gravador.gravando && e.key === 'Enter') return e.preventDefault(), microfone();
     if (modo && itens.length) {
       if (e.key === 'ArrowDown') return e.preventDefault(), marcar(sel + 1);
       if (e.key === 'ArrowUp') return e.preventDefault(), marcar(sel - 1);
@@ -389,6 +446,8 @@
     setTimeout(() => texto.focus(), 30);
   });
   window.rapido.onClose(() => {
+    gravador.cancelar();
+    document.body.classList.remove('gravando');
     document.body.classList.add('fechando');
     document.body.classList.remove('aberto');
   });

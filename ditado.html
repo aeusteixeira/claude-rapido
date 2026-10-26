@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Ditado</title>
+<style>
+  :root {
+    --terra: #d97757;
+    --terra-claro: #ec9a7c;
+    --creme: #f5ece4;
+    --texto: #f3ebe4;
+    --suave: rgba(243, 235, 228, 0.62);
+    --fraco: rgba(243, 235, 228, 0.38);
+    --linha: rgba(255, 226, 208, 0.10);
+    --fundo-1: rgba(40, 29, 25, 0.97);
+    --fundo-2: rgba(21, 17, 16, 0.98);
+    --rec: #ff6b5b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: transparent; overflow: hidden; }
+  body {
+    font-family: 'Inter', 'Noto Sans', system-ui, sans-serif;
+    color: var(--texto);
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+    padding-bottom: 12px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #card {
+    position: relative;
+    width: 560px;
+    border-radius: 24px;
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(217, 119, 87, 0.16), transparent 55%),
+      linear-gradient(165deg, var(--fundo-1), var(--fundo-2));
+    border: 1px solid var(--linha);
+    padding: 14px 18px 12px;
+    opacity: 0;
+    transform: translateY(10px) scale(0.965);
+    transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  }
+  body.aberto #card { opacity: 1; transform: none; }
+  body.fechando #card { opacity: 0; transform: translateY(6px) scale(0.98); transition-duration: 0.12s; }
+  #card::before {
+    content: ''; position: absolute; left: 40px; right: 40px; top: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(236, 154, 124, 0.7), transparent);
+  }
+
+  #topo { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--suave); }
+  #ponto { width: 10px; height: 10px; border-radius: 50%; background: var(--terra); }
+  body.gravando #ponto { background: var(--rec); animation: pisca 1.1s ease-in-out infinite; }
+  body.transcrevendo #ponto { animation: pisca 0.6s ease-in-out infinite; }
+  @keyframes pisca { 50% { opacity: 0.25; } }
+  #topo b { color: var(--creme); font-weight: 600; }
+  #tempo { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--fraco); }
+
+  #meio { height: 96px; margin: 10px 0 8px; display: grid; place-items: center; }
+  #onda { width: 100%; height: 72px; display: none; }
+  body.gravando #onda { display: block; }
+  #aviso { display: none; font-size: 14px; color: var(--suave); }
+  body.transcrevendo #aviso, body.erro #aviso { display: block; }
+  body.erro #aviso { color: #ff9a8a; text-align: center; padding: 0 10px; }
+  #texto {
+    display: none; width: 100%; height: 96px;
+    background: none; border: none; outline: none; resize: none;
+    color: var(--texto); caret-color: var(--terra);
+    font: inherit; font-size: 17px; line-height: 1.45;
+  }
+  body.pronto #texto { display: block; }
+  #texto::-webkit-scrollbar { width: 6px; }
+  #texto::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 3px; }
+
+  #rodape {
+    display: flex; align-items: center; gap: 14px;
+    padding-top: 10px; border-top: 1px solid var(--linha);
+    font-size: 11.5px; color: var(--fraco);
+  }
+  #rodape span { display: none; align-items: center; gap: 5px; white-space: nowrap; }
+  body.gravando #rodape .g, body.pronto #rodape .p, body.erro #rodape .e { display: inline-flex; }
+  #rodape .sempre { display: inline-flex; margin-left: auto; }
+  kbd {
+    font-family: inherit; font-size: 10.5px; font-weight: 600;
+    min-width: 20px; height: 19px; padding: 0 5px;
+    display: inline-grid; place-items: center;
+    color: var(--suave); background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.09); border-bottom-width: 2px; border-radius: 5px;
+  }
+  #copiado { color: var(--terra-claro); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div id="card">
+    <div id="topo"><span id="ponto"></span><b>Ditado</b><span id="estado"></span><span id="tempo"></span></div>
+    <div id="meio">
+      <canvas id="onda" width="1048" height="144"></canvas>
+      <div id="aviso"></div>
+      <textarea id="texto" spellcheck="false"></textarea>
+    </div>
+    <div id="rodape">
+      <span class="g"><kbd>Espaço</kbd> terminar</span>
+      <span class="p" id="copiado">✓ copiado</span>
+      <span class="p"><kbd>↵</kbd> copiar</span>
+      <span class="p"><kbd>Ctrl</kbd><kbd>↵</kbd> mandar pro Claude</span>
+      <span class="p"><kbd>Ctrl</kbd><kbd>R</kbd> regravar</span>
+      <span class="e"><kbd>R</kbd> gravar de novo</span>
+      <span class="sempre"><kbd>Esc</kbd> fechar</span>
+    </div>
+  </div>
+
+<script src="gravador.js"></script>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const texto = $('#texto');
+  const onda = $('#onda');
+  const g = onda.getContext('2d');
+  const gravador = new Gravador();
+  const BARRAS = 64;
+  let niveis = [];
+  let estado = '';
+  let inicio = 0;
+  let relogio = null;
+
+  function mudar(novo, frase = '') {
+    estado = novo;
+    document.body.classList.remove('gravando', 'transcrevendo', 'pronto', 'erro');
+    document.body.classList.add(novo);
+    $('#estado').textContent = frase;
+  }
+
+  function desenhar(nivel) {
+    niveis.push(Math.min(1, nivel * 4));
+    if (niveis.length > BARRAS) niveis.shift();
+    const { width: w, height: h } = onda;
+    g.clearRect(0, 0, w, h);
+    const passo = w / BARRAS;
+    g.fillStyle = '#ec9a7c';
+    niveis.forEach((n, i) => {
+      const alt = Math.max(6, n * h);
+      const x = w - (niveis.length - i) * passo + passo * 0.25;
+      g.globalAlpha = 0.35 + 0.65 * (i / niveis.length);
+      g.beginPath();
+      g.roundRect(x, (h - alt) / 2, passo * 0.5, alt, 4);
+      g.fill();
+    });
+  }
+
+  async function gravar() {
+    niveis = [];
+    texto.value = '';
+    mudar('gravando', 'ouvindo…');
+    try {
+      await gravador.iniciar(desenhar);
+    } catch (e) {
+      return mudar('erro', ''), ($('#aviso').textContent = `Não consegui usar o microfone: ${e.message}`);
+    }
+    inicio = Date.now();
+    clearInterval(relogio);
+    relogio = setInterval(() => {
+      const s = Math.floor((Date.now() - inicio) / 1000);
+      $('#tempo').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }, 250);
+  }
+
+  async function terminar() {
+    if (estado !== 'gravando') return;
+    clearInterval(relogio);
+    const audio = await gravador.parar();
+    mudar('transcrevendo', 'transcrevendo…');
+    $('#aviso').textContent = 'Transformando sua fala em texto…';
+    const r = await window.rapido.transcrever(audio);
+    if (estado !== 'transcrevendo') return; // fechou no meio
+    if (!r.ok) return mudar('erro'), ($('#aviso').textContent = r.error);
+    if (!r.text) return mudar('erro'), ($('#aviso').textContent = 'Não ouvi nada. Aperte R pra tentar de novo.');
+    texto.value = r.text;
+    window.rapido.copiar(r.text);
+    mudar('pronto', '');
+    texto.focus();
+    texto.setSelectionRange(texto.value.length, texto.value.length);
+  }
+
+  function fechar() {
+    gravador.cancelar();
+    clearInterval(relogio);
+    estado = '';
+    window.rapido.esconderDitado();
+  }
+
+  document.addEventListener('keydown', async (e) => {
+    if (e.key === 'Escape') return e.preventDefault(), fechar();
+    if (estado === 'gravando' && (e.key === ' ' || e.key === 'Enter')) return e.preventDefault(), terminar();
+    if (estado === 'pronto' && e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      const r = await window.rapido.perguntarDitado(texto.value.trim());
+      if (!r.ok) mudar('erro'), ($('#aviso').textContent = r.error);
+      return;
+    }
+    if (estado === 'pronto' && e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      window.rapido.copiar(texto.value.trim());
+      return fechar();
+    }
+    // no texto pronto o R é digitação normal; só grava de novo com Ctrl+R
+    if ((estado === 'erro' && e.key.toLowerCase() === 'r') || (estado === 'pronto' && e.key.toLowerCase() === 'r' && e.ctrlKey)) {
+      e.preventDefault();
+      gravar();
+    }
+  });
+  // editou o texto: o que vai pra área de transferência é a versão editada
+  texto.addEventListener('input', () => window.rapido.copiar(texto.value.trim()));
+
+  window.rapido.onDitado('abrir', () => {
+    document.body.classList.remove('fechando');
+    requestAnimationFrame(() => document.body.classList.add('aberto'));
+    $('#tempo').textContent = '';
+    gravar();
+  });
+  // Meta+H de novo: termina a gravação, ou começa outra
+  window.rapido.onDitado('atalho', () => (estado === 'gravando' ? terminar() : estado !== 'transcrevendo' && gravar()));
+  window.rapido.onDitado('blur', () => {
+    if (estado === 'pronto' || estado === 'erro') fechar();
+  });
+  window.rapido.onClose(() => {
+    document.body.classList.add('fechando');
+    document.body.classList.remove('aberto');
+  });
+</script>
+</body>
+</html>

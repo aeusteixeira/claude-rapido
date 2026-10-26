@@ -42,3 +42,10 @@ fecha). O atalho roda `claude-rapido`, que tenta abrir o app de novo — a segun
 instância avisa a primeira, que mostra a barra no centro do monitor onde está o
 mouse. No Linux roda pelo XWayland (`--ozone-platform=x11`) pra janela poder se
 posicionar e pegar o foco. A interface inteira está em `index.html`.
+
+## Falar em vez de digitar
+
+- **Na barra:** clique no microfone (ou `Ctrl+Espaço`), fale e clique de novo (ou `Enter`). O texto entra no campo.
+- **Em qualquer lugar:** `Meta+H` abre a janela de ditado, que já começa a ouvir. `Espaço` (ou `Meta+H` de novo) termina; o texto vai pra área de transferência — é só colar com `Ctrl+V`. `Ctrl+Enter` manda direto pro Claude.
+
+A transcrição é local, pelo [whisper.cpp](https://github.com/ggml-org/whisper.cpp) com o modelo `small` (~2 s por frase no processador). O `instalar.sh` compila o `whisper-cli` e baixa o modelo; dá pra trocar com `WHISPER_CLI` e `WHISPER_MODEL`.
