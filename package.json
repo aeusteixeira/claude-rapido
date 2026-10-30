@@ -4,6 +4,7 @@
   "description": "Atalho global que abre uma barra estilosa e manda a pergunta pro Claude Code no terminal",
   "main": "main.js",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "start": "electron . --ozone-platform=x11"
   },
