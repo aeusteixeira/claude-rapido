@@ -136,7 +136,9 @@ function launch({ text, path: dir }) {
   if (!claude) return { ok: false, error: 'Não encontrei o comando claude. Instale o Claude Code.' };
   // um texto começando com "-" seria lido como opção do claude
   const prompt = text.startsWith('-') ? ` ${text}` : text;
-  const cwd = dir && fs.existsSync(dir) ? dir : os.homedir();
+  // sem projeto escolhido abre na pasta de projetos: o Claude nunca memoriza a
+  // confiança da pasta pessoal e perguntaria "confia nesta pasta?" toda vez
+  const cwd = dir && fs.existsSync(dir) ? dir : fs.existsSync(ROOT) ? ROOT : os.homedir();
   // se a barra foi iniciada de dentro de um Claude, as variáveis dele não podem vazar
   // pro novo (senão ele se acha uma sessão filha e não salva o histórico)
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('CLAUDE_CODE_') && k !== 'CLAUDECODE'));
